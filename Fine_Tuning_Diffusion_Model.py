@@ -19,7 +19,29 @@ processor = VaeImageProcessor()
 # Some Parameters
 num_epochs = 1
 learning_rate = 1e-5
-batch_size = 1
+batch_size = 2
+
+def show_images(celeba_batch, old_batch, num_images=1):
+    fig, axes = plt.subplots(num_images, 2, figsize=(10, 5 * num_images))
+    axes = axes.flatten()
+
+    for i in range(num_images):
+        # Plot CelebA images
+        celeba_img = celeba_batch[i].permute(1, 2, 0).cpu().numpy()
+        celeba_img = (celeba_img * 255).astype(np.uint8)  # Convert from float16/32 to uint8
+        axes[2 * i].imshow(celeba_img)
+        axes[2 * i].set_title(f'CelebA Image {i + 1}')
+        axes[2 * i].axis('off')
+
+        # Plot Old Photo images
+        old_img = old_batch[i].permute(1, 2, 0).cpu().numpy()
+        old_img = (old_img * 255).astype(np.uint8)  # Convert from float16/32 to uint8
+        axes[2 * i + 1].imshow(old_img)
+        axes[2 * i + 1].set_title(f'Old Photo Image {i + 1}')
+        axes[2 * i + 1].axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
 # pipeline =  AutoPipelineForImage2Image.from_pretrained(
 #    "runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16, variant="fp16", use_safetensors=True
@@ -29,11 +51,8 @@ batch_size = 1
 # tokenizer.clean_up_tokenization_spaces = True
 pipeline = AutoPipelineForImage2Image.from_pretrained('./fine_tuned_pipeline', torch_dtype=torch.float16, variant="fp16").to(device)
 # Define dataset and dataloader
-celeba_dataset = Dataset.CelebADataset(split='train', folder_path = "original_photos", img_size=(512, 512))
-old_dataset = Dataset.OldPhotoDataset(split='train', folder_path="converted_old_photos", img_size=(512, 512))
-
-celeba_dataloader = DataLoader(celeba_dataset, batch_size=batch_size, shuffle=True)
-old_dataloader = DataLoader(old_dataset, batch_size=batch_size, shuffle=True)
+dataset = Dataset.PairedImageDataset(celeba_folder="original_photos", old_photo_folder="converted_old_photos", img_size=(256, 256))
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 # Define Optimizer
 optimizer = torch.optim.AdamW(pipeline.unet.parameters(), lr=learning_rate, weight_decay=1e-4)
@@ -44,14 +63,14 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch + 1}/{num_epochs}")
     num_images_processed = 0
 
-    for celeba_batch, old_batch in tqdm(zip(celeba_dataloader, old_dataloader), total=len(celeba_dataloader)):
+    for celeba_batch, old_batch in tqdm(dataloader, total=len(dataloader)):
         if num_images_processed >= 25:
             break
             
         # Move batches to the correct device
-        celeba_batch = celeba_batch.to(device)
-        old_batch = old_batch.to(device)
-
+        celeba_batch = celeba_batch.to(device).to(torch.float16)
+        old_batch = old_batch.to(device).to(torch.float16)
+        
         # Generate enhanced images using the pipeline
         with torch.no_grad():
             enhanced_images = pipeline(
@@ -66,19 +85,19 @@ for epoch in range(num_epochs):
         )
 
         # Loss function
-        l1_loss = F.l1_loss(enhanced_images, celeba_batch)
+        mse_loss = F.l1_loss(enhanced_images, celeba_batch)
 
         # Zero gradients
         optimizer.zero_grad()
 
         # Backpropagate the loss
-        l1_loss.backward()
+        mse_loss.backward()
 
         # Update model parameters
         optimizer.step()
 
         # Store loss for logging
-        losses.append(l1_loss.item())
+        losses.append(mse_loss.item())
 
         num_images_processed += len(celeba_batch)
 
