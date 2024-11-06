@@ -1,0 +1,9 @@
+export BASICSR_JIT='True'
+set BASICSR_JIT='True'
+env BASICSR_JIT='True'
+torchrun gfpgan/train.py -opt options/train_gfpgan_v1.yml
+python3 inference_gfpgan.py -i inputs/upload -o results -v 1.3 -s 2
+python3 -m torch.distributed.run --nproc_per_node=1 --master_port=22021 gfpgan/train.py -opt options/train_gfpgan_v1.yml --launcher pytorch
+export CC=gcc-9
+export CXX=g++-9
+python inference_gfpgan.py -i inputs/upload -o results -s 2 -v 1.3
