@@ -25,8 +25,8 @@ datasets:
     kernel_prob: [0.5, 0.5]
     blur_sigma: [1, 10]
     downsample_range: [1, 8]
-    noise_range: [0, 20]
-    jpeg_range: [10, 100]
+    noise_range: [10, 20]
+    jpeg_range: [10, 30]
 
     # color jitter and gray
     color_jitter_prob: 0.6
@@ -132,7 +132,7 @@ train:
     milestones: [600000, 700000]
     gamma: 0.5
 
-  total_iter: 500
+  total_iter: 4000
   warmup_iter: -1  # no warm up
 
   # losses
@@ -206,7 +206,7 @@ logger:
   use_tb_logger: true
   wandb:
     project: Diffusion
-    resume_id: train_GFPGANv1_512
+    resume_id: ll57gdvd
 
 # dist training settings
 dist_params:
